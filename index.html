@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="업무에 바로 쓰는 간단한 웹 도구 모음입니다.">
+  <title>작업 도구함</title>
+  <style>
+    :root { font-family: Inter, Pretendard, "Malgun Gothic", Arial, sans-serif; color: #172033; background: #f6f8fc; }
+    * { box-sizing: border-box; }
+    body { min-width: 320px; margin: 0; }
+    .container { width: min(1120px, calc(100% - 40px)); margin: 0 auto; }
+    header { padding: 22px 0; border-bottom: 1px solid #e2e7f0; background: rgba(255,255,255,.86); }
+    .brand { color: inherit; font-size: 17px; font-weight: 800; letter-spacing: -.04em; text-decoration: none; }
+    main { padding: clamp(64px, 12vw, 132px) 0 80px; }
+    .eyebrow { margin: 0 0 14px; color: #3264db; font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    h1 { max-width: 700px; margin: 0; font-size: clamp(36px, 6vw, 62px); line-height: 1.12; letter-spacing: -.065em; }
+    .intro { max-width: 590px; margin: 22px 0 52px; color: #607087; font-size: 17px; line-height: 1.7; }
+    .tool-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 16px; }
+    .tool-card { display: flex; flex-direction: column; min-height: 236px; padding: 26px; border: 1px solid #dfe6f2; border-radius: 18px; background: #fff; box-shadow: 0 8px 24px rgba(41, 58, 88, .05); color: inherit; text-decoration: none; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+    .tool-card:hover, .tool-card:focus-visible { transform: translateY(-4px); border-color: #9bb7fa; box-shadow: 0 15px 30px rgba(41, 71, 135, .13); outline: none; }
+    .icon { display: grid; width: 44px; height: 44px; place-items: center; border-radius: 12px; background: #eaf0ff; color: #285bd6; font-size: 22px; }
+    h2 { margin: 24px 0 8px; font-size: 21px; letter-spacing: -.04em; }
+    .tool-card p { margin: 0; color: #67758a; font-size: 14px; line-height: 1.65; }
+    .open { margin-top: auto; padding-top: 20px; color: #285bd6; font-size: 14px; font-weight: 800; }
+    footer { padding: 26px 0 38px; color: #8a96a8; font-size: 13px; }
+    @media (max-width: 600px) { .container { width: min(100% - 32px, 1120px); } main { padding-top: 58px; } .intro { font-size: 16px; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container"><a class="brand" href="./">작업 도구함</a></div>
+  </header>
+  <main class="container">
+    <p class="eyebrow">Work utilities</p>
+    <h1>반복 작업을<br>조금 더 빠르게.</h1>
+    <p class="intro">업무 중 필요한 작은 변환 도구를 모아 둡니다. 모든 처리는 브라우저 안에서 이루어지며, 입력한 내용은 서버로 전송되지 않습니다.</p>
+    <section class="tool-grid" aria-label="사용 가능한 도구">
+      <a class="tool-card" href="./tools/screen-spec-ppt-converter/">
+        <span class="icon" aria-hidden="true">↗</span>
+        <h2>화면설계서 PPT 변환기</h2>
+        <p>표에서 복사한 화면설계서 텍스트를 PowerPoint에 붙여넣기 좋은 형식으로 정리합니다.</p>
+        <span class="open">도구 열기 →</span>
+      </a>
+    </section>
+  </main>
+  <footer class="container">© 2026 작업 도구함</footer>
+</body>
+</html>

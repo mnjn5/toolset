@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="화면설계서 텍스트를 PowerPoint에 붙여넣기 좋은 형식으로 변환합니다.">
+  <title>화면설계서 PPT 변환기 | 작업 도구함</title>
+  <style>
+    :root { color-scheme: light; font-family: Arial, "Malgun Gothic", sans-serif; color: #172033; background: #f5f7fb; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 320px; }
+    main { max-width: 1280px; margin: 0 auto; padding: 28px 24px 48px; }
+    .home-link { display: inline-flex; margin-bottom: 28px; color: #536785; font-size: 14px; font-weight: 700; text-decoration: none; }
+    .home-link:hover { color: #285bd6; }
+    h1 { margin: 0; font-size: clamp(26px, 4vw, 36px); letter-spacing: -0.04em; }
+    .intro { margin: 12px 0 32px; color: #5d6878; font-size: 15px; line-height: 1.6; }
+    .tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+    .tab { padding: 9px 14px; border: 1px solid #d6deeb; background: #fff; color: #526178; }
+    .tab:hover { background: #f4f7fc; }
+    .tab[aria-selected="true"] { border-color: #285bd6; background: #285bd6; color: #fff; }
+    .result-controls { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+    .legacy-cases { position: relative; }
+    .legacy-cases summary { padding: 8px 10px; color: #66748a; font-size: 12px; cursor: pointer; user-select: none; }
+    .legacy-cases[open] { padding: 8px; border: 1px solid #d6deeb; border-radius: 8px; background: #fff; }
+    .panels { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; }
+    .panel { display: flex; flex-direction: column; min-height: 550px; padding: 20px; border: 1px solid #dde3ec; border-radius: 14px; background: #fff; box-shadow: 0 5px 18px rgba(30, 48, 74, .05); }
+    .panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+    h2 { margin: 0; font-size: 16px; }
+    .hint { color: #778397; font-size: 12px; }
+    textarea, .output { width: 100%; flex: 1; border: 1px solid #cdd6e2; border-radius: 10px; padding: 16px; color: #172033; font: 14px/1.65 Arial, "Malgun Gothic", sans-serif; outline: none; }
+    textarea { min-height: 390px; resize: vertical; background: #fcfdff; }
+    textarea:focus, .output:focus { border-color: #4d75e8; box-shadow: 0 0 0 3px rgba(77, 117, 232, .13); }
+    .output { overflow: auto; white-space: normal; background: #fff; }
+    .output:empty::before { content: "변환 결과가 여기에 표시됩니다."; color: #94a0b0; }
+    .actions { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding-top: 14px; min-height: 56px; }
+    .status { margin: 0; color: #66748a; font-size: 13px; line-height: 1.4; }
+    button { appearance: none; flex: 0 0 auto; border: 0; border-radius: 8px; padding: 10px 15px; background: #285bd6; color: #fff; font: 700 14px Arial, "Malgun Gothic", sans-serif; cursor: pointer; }
+    button:hover { background: #1e4dbf; }
+    button.secondary { padding: 7px 10px; background: #eef2f8; color: #43536a; font-size: 12px; }
+    button.secondary:hover { background: #e2e9f4; }
+    button.danger { background: #fff; border: 1px solid #d6deeb; color: #68768a; }
+    button.danger:hover { background: #f5f7fb; }
+    @media (max-width: 760px) { main { padding: 28px 16px; } .panels { grid-template-columns: 1fr; } .panel { min-height: 420px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <a class="home-link" href="../../">← 작업 도구함</a>
+    <h1>화면설계서 PPT 변환기</h1>
+    <p class="intro">왼쪽에 화면설계서 표에서 복사한 텍스트를 붙여넣으면, 오른쪽에서 PowerPoint에 붙여넣기 좋은 형식으로 변환됩니다.</p>
+    <section class="panels" id="converter" aria-label="변환 도구">
+      <section class="panel">
+        <div class="panel-heading">
+          <h2>원본 텍스트</h2>
+          <div class="tabs">
+            <button class="secondary" id="paste-clipboard" type="button">클립보드 붙여넣기</button>
+            <button class="secondary" id="reconvert" type="button" title="현재 케이스 결과를 원본 텍스트로 다시 변환합니다">다시 변환</button>
+            <button class="secondary danger" id="clear-all" type="button">전체 지우기</button>
+          </div>
+        </div>
+        <textarea id="source" aria-label="원본 텍스트 입력" placeholder="여기에 표에서 복사한 텍스트를 붙여넣으세요."></textarea>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <h2>변환 결과</h2>
+          <div class="result-controls">
+            <div class="tabs" role="tablist" aria-label="변환 방식">
+              <button class="tab" id="tab-unified" type="button" role="tab" aria-selected="true" aria-controls="output">통합 변환</button>
+            </div>
+            <details class="legacy-cases">
+              <summary>기존 케이스 보기</summary>
+              <div class="tabs" role="tablist" aria-label="기존 변환 케이스">
+                <button class="tab" id="tab-a" type="button" role="tab" aria-selected="false" aria-controls="output">케이스 A</button>
+                <button class="tab" id="tab-b" type="button" role="tab" aria-selected="false" aria-controls="output">케이스 B</button>
+                <button class="tab" id="tab-c" type="button" role="tab" aria-selected="false" aria-controls="output">케이스 C</button>
+                <button class="tab" id="tab-d" type="button" role="tab" aria-selected="false" aria-controls="output">케이스 D</button>
+                <button class="tab" id="tab-e" type="button" role="tab" aria-selected="false" aria-controls="output">케이스 E</button>
+              </div>
+            </details>
+            <button id="copy" type="button">PPT용으로 복사</button>
+          </div>
+        </div>
+        <div id="output" class="output" contenteditable="true" role="textbox" aria-label="변환 결과 수정 영역" aria-multiline="true"></div>
+        <div class="actions">
+          <p class="status" id="status" aria-live="polite">제목은 굵게, 설명은 하이픈 목록으로 변환됩니다.</p>
+          <span class="hint">결과를 직접 수정할 수 있습니다</span>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      const source = document.getElementById('source');
+      const output = document.getElementById('output');
+      const copyButton = document.getElementById('copy');
+      const pasteClipboardButton = document.getElementById('paste-clipboard');
+      const reconvertButton = document.getElementById('reconvert');
+      const clearAllButton = document.getElementById('clear-all');
+      const status = document.getElementById('status');
+      const tabs = [...document.querySelectorAll('[role="tab"]')];
+      let writingOutput = false;
+      let activeCase = 'unified';
+      let sourceVersion = 0;
+      const caseStates = {
+        unified: { output: '', manuallyEdited: false, sourceVersion: -1 },
+        a: { output: '', manuallyEdited: false, sourceVersion: -1 },
+        b: { output: '', manuallyEdited: false, sourceVersion: -1 },
+        c: { output: '', manuallyEdited: false, sourceVersion: -1 },
+        d: { output: '', manuallyEdited: false, sourceVersion: -1 },
+        e: { output: '', manuallyEdited: false, sourceVersion: -1 }
+      };
+
+      const escapeHtml = (value) => value.replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      })[char]);
+
+      function parseItems(text) {
+        const lines = text.replace(/\r\n?/g, '\n').split('\n').map((line) => line.trim());
+        const items = [];
+        let current = null;
+
+        const startItem = (number, title) => {
+          if (current) items.push(current);
+          current = { number, title, descriptions: [] };
+        };
+
+        for (let i = 0; i < lines.length; i += 1) {
+          const line = lines[i];
+          if (!line) continue;
+          const inlineTitle = line.match(/^(\d+(?:-\d+)*)\s*[.)]\s*(.+)$/);
+          if (inlineTitle) {
+            startItem(inlineTitle[1], inlineTitle[2].trim());
+            continue;
+          }
+          if (/^\d+(?:-\d+)*$/.test(line)) {
+            const nextIndex = lines.findIndex((nextLine, index) => index > i && nextLine !== '');
+            if (nextIndex !== -1) {
+              startItem(line, lines[nextIndex]);
+              i = nextIndex;
+              continue;
+            }
+          }
+          if (current) current.descriptions.push(line.replace(/^[•·\-–—]\s*/, '').trim());
+        }
+        if (current) items.push(current);
+        return items;
+      }
+
+      function createListHtml(text) {
+        return parseItems(text).map((item) => {
+          const title = `<strong style="font-weight:700">${escapeHtml(item.number)}. ${escapeHtml(item.title)}</strong>`;
+          const descriptions = item.descriptions
+            .filter(Boolean)
+            .map((description) => `- ${escapeHtml(description)}`);
+          return [title, ...descriptions].join('<br>');
+        }).join('<br><br>');
+      }
+
+      function createCaseCHtml(text) {
+        const groups = text.replace(/\r\n?/g, '\n')
+          .split(/\n\s*\n+/)
+          .map((group) => group.split('\n').map((line) => line.trim()).filter(Boolean))
+          .filter((group) => group.length);
+        return groups.map((group) => {
+          const [heading, ...lines] = group;
+          return `<div><strong style="font-weight:700">${escapeHtml(heading)}</strong>${lines.map((line) => `<br>${escapeHtml(line)}`).join('')}</div>`;
+        }).join('');
+      }
+
+      function createCaseDHtml(text) {
+        const rows = text.replace(/\r\n?/g, '\n').split('\n').map((row) => row.trim()).filter(Boolean);
+        return rows.map((row) => {
+          const lines = row.split('\u000B').map((line) => line.trim()).filter(Boolean);
+          if (!lines.length) return '';
+          const [firstLine, ...details] = lines;
+          const titleMatch = firstLine.match(/^(\d+(?:-\d+)*)\s*[.)]\s*(.+)$/);
+          const title = titleMatch ? `${titleMatch[1]}. ${titleMatch[2].trim()}` : firstLine;
+          const normalizedDetails = details.map((line) => `- ${line.replace(/^[•·\-–—]\s*/, '').trim()}`);
+          return `<div><strong style="font-weight:700">${escapeHtml(title)}</strong>${normalizedDetails.map((line) => `<br>${escapeHtml(line)}`).join('')}</div>`;
+        }).join('');
+      }
+
+      function createCaseEHtml(text) {
+        const rows = text.replace(/\r\n?/g, '\n').split('\n');
+        const items = [];
+        let current = null;
+        let pendingNumber = null;
+        const numberPattern = /^\d+(?:-\d+)*$/;
+        const titlePattern = /^(\d+(?:-\d+)*)\s*[.)]\s*(.+)$/;
+        const isDetailStart = (line) => /^[•·\-–—]/.test(line);
+
+        const startItem = (number, title) => {
+          if (current) items.push(current);
+          current = { number, title, descriptions: [] };
+          pendingNumber = null;
+        };
+        const addDetail = (line) => {
+          if (!current) return;
+          const content = line.replace(/^[•·\-–—]\s*/, '').trim();
+          if (!content) return;
+          if (isDetailStart(line) || !current.descriptions.length) {
+            current.descriptions.push(content);
+          } else {
+            current.descriptions[current.descriptions.length - 1] += ` ${content}`;
+          }
+        };
+
+        rows.forEach((row) => {
+          const parts = row.split(/[\u000B\u2028]/).map((part) => part.trim()).filter(Boolean);
+          parts.forEach((part) => {
+            const inlineTitle = part.match(titlePattern);
+            if (inlineTitle) {
+              startItem(inlineTitle[1], inlineTitle[2].trim());
+            } else if (numberPattern.test(part)) {
+              pendingNumber = part;
+            } else if (pendingNumber) {
+              startItem(pendingNumber, part);
+            } else {
+              addDetail(part);
+            }
+          });
+        });
+        if (current) items.push(current);
+        return items.map((item) => {
+          const title = `<strong style="font-weight:700">${escapeHtml(item.number)}. ${escapeHtml(item.title)}</strong>`;
+          return `<div>${[title, ...item.descriptions.map((description) => `- ${escapeHtml(description)}`)].join('<br>')}</div>`;
+        }).join('');
+      }
+
+      function createUnifiedHtml(text) {
+        const rows = text.replace(/\r\n?/g, '\n').split('\n');
+        const items = [];
+        let current = null;
+        let pendingNumber = null;
+        let startsNewGroup = true;
+        let lastDetailWasBullet = false;
+        const numberPattern = /^\d+(?:-\d+)*$/;
+        const titlePattern = /^(\d+(?:-\d+)*)\s*[.)]\s*(.+)$/;
+        const isBullet = (line) => /^[•·\-–—]/.test(line);
+
+        const startItem = (number, title) => {
+          if (current) items.push(current);
+          current = { number, title, descriptions: [] };
+          pendingNumber = null;
+          startsNewGroup = false;
+          lastDetailWasBullet = false;
+        };
+        const addDetail = (line, forceNew = false) => {
+          if (!current) return;
+          const bullet = isBullet(line);
+          const content = line.replace(/^[•·\-–—]\s*/, '').trim();
+          if (!content) return;
+          if (forceNew || bullet || !current.descriptions.length || !lastDetailWasBullet) {
+            current.descriptions.push({ content, bullet });
+            lastDetailWasBullet = bullet;
+          } else {
+            current.descriptions[current.descriptions.length - 1].content += ` ${content}`;
+          }
+        };
+
+        rows.forEach((row) => {
+          if (!row.trim()) {
+            startsNewGroup = true;
+            return;
+          }
+          const parts = row.split(/[\u000B\u2028]/).map((part) => part.trim()).filter(Boolean);
+          parts.forEach((part, index) => {
+            const inlineTitle = part.match(titlePattern);
+            if (inlineTitle) {
+              startItem(inlineTitle[1], inlineTitle[2].trim());
+            } else if (numberPattern.test(part)) {
+              pendingNumber = part;
+            } else if (pendingNumber) {
+              startItem(pendingNumber, part);
+            } else if (!current || (startsNewGroup && index === 0)) {
+              startItem('', part);
+            } else if (index === 0) {
+              addDetail(part, true);
+            } else {
+              addDetail(part);
+            }
+          });
+          startsNewGroup = false;
+        });
+        if (current) items.push(current);
+        return items.map((item) => {
+          const numberPrefix = item.number ? `${item.number}. ` : '';
+          const title = `<strong style="font-weight:700">${escapeHtml(numberPrefix + item.title)}</strong>`;
+          const details = item.descriptions.map((description) => {
+            const prefix = item.number || description.bullet ? '- ' : '';
+            return `${prefix}${escapeHtml(description.content)}`;
+          });
+          return `<div>${[title, ...details].join('<br>')}</div>`;
+        }).join('');
+      }
+
+      function createHtml(text, caseId) {
+        if (caseId === 'unified') return createUnifiedHtml(text);
+        if (caseId === 'c') return createCaseCHtml(text);
+        if (caseId === 'd') return createCaseDHtml(text);
+        if (caseId === 'e') return createCaseEHtml(text);
+        return createListHtml(text);
+      }
+
+      function convert(caseId = activeCase) {
+        const current = caseStates[caseId];
+        const convertedHtml = createHtml(source.value, caseId);
+        current.output = convertedHtml;
+        current.manuallyEdited = false;
+        current.sourceVersion = sourceVersion;
+        if (caseId !== activeCase) return;
+        writingOutput = true;
+        output.innerHTML = convertedHtml;
+        writingOutput = false;
+        status.textContent = source.value.trim() ? '변환 완료. 오른쪽에서 내용을 직접 수정할 수 있습니다.' : '제목은 굵게, 설명은 하이픈 목록으로 변환됩니다.';
+      }
+
+      function loadCase(caseId) {
+        activeCase = caseId;
+        const current = caseStates[caseId];
+        source.placeholder = caseId === 'unified'
+          ? '표에서 복사한 텍스트를 붙여넣으세요. 번호형·문단형·셀 안 줄바꿈을 통합 변환합니다.'
+          : caseId === 'c'
+          ? '빈 줄로 항목을 구분해 붙여넣으세요. 각 항목의 첫 줄은 굵게 변환됩니다.'
+          : caseId === 'd'
+            ? '표에서 복사한 텍스트를 붙여넣으세요. 행과 셀 안 줄바꿈을 구분해 변환합니다.'
+            : caseId === 'e'
+              ? '줄 구분 문자가 섞인 표 복사 텍스트를 붙여넣으세요.'
+            : '여기에 표에서 복사한 텍스트를 붙여넣으세요.';
+        if (!current.manuallyEdited && current.sourceVersion !== sourceVersion) {
+          current.output = createHtml(source.value, caseId);
+          current.sourceVersion = sourceVersion;
+        }
+        writingOutput = true;
+        output.innerHTML = current.output;
+        writingOutput = false;
+        tabs.forEach((tab) => tab.setAttribute('aria-selected', String(tab.id === `tab-${caseId}`)));
+        status.textContent = source.value.trim()
+          ? `${caseId === 'unified' ? '통합 변환' : `케이스 ${caseId.toUpperCase()}`}을 불러왔습니다.`
+          : caseId === 'unified'
+            ? '번호형·문단형·표 안 줄바꿈을 통합 변환합니다.'
+            : caseId === 'c'
+            ? '빈 줄마다 항목을 나누고, 각 항목의 첫 줄을 굵게 변환합니다.'
+            : caseId === 'd'
+              ? '행마다 항목을 나누고, 셀 안 줄바꿈은 설명 줄로 변환합니다.'
+              : caseId === 'e'
+                ? '셀 안 줄바꿈과 중간 줄바꿈을 설명 줄로 정리해 변환합니다.'
+            : '제목은 굵게, 설명은 하이픈 목록으로 변환됩니다.';
+      }
+
+      source.addEventListener('input', () => {
+        sourceVersion += 1;
+        if (caseStates[activeCase].manuallyEdited) {
+          status.textContent = '결과를 직접 수정한 상태입니다. 입력 내용을 반영하려면 “다시 변환”을 누르세요.';
+          return;
+        }
+        convert();
+      });
+      output.addEventListener('input', () => {
+        if (!writingOutput) {
+          caseStates[activeCase].output = output.innerHTML;
+          caseStates[activeCase].manuallyEdited = true;
+          caseStates[activeCase].sourceVersion = sourceVersion;
+          status.textContent = '직접 수정한 결과가 복사됩니다.';
+        }
+      });
+      pasteClipboardButton.addEventListener('click', async () => {
+        try {
+          if (!navigator.clipboard?.readText) throw new Error('Clipboard API 미지원');
+          const wasManuallyEdited = caseStates[activeCase].manuallyEdited;
+          source.value = await navigator.clipboard.readText();
+          source.focus();
+          source.dispatchEvent(new Event('input', { bubbles: true }));
+          status.textContent = source.value.trim()
+            ? wasManuallyEdited
+              ? '클립보드 내용을 붙여넣었습니다. 직접 수정한 결과에 반영하려면 “다시 변환”을 누르세요.'
+              : '클립보드 내용을 붙여넣고 변환했습니다.'
+            : '클립보드에 텍스트가 없습니다.';
+        } catch (error) {
+          source.focus();
+          status.textContent = '클립보드 접근 권한이 필요합니다. 입력 영역에서 Ctrl+V로 붙여넣어 주세요.';
+        }
+      });
+      reconvertButton.addEventListener('click', () => convert());
+      tabs.forEach((tab) => tab.addEventListener('click', () => loadCase(tab.id.replace('tab-', ''))));
+      clearAllButton.addEventListener('click', () => {
+        source.value = '';
+        sourceVersion += 1;
+        Object.values(caseStates).forEach((item) => {
+          item.output = '';
+          item.manuallyEdited = false;
+          item.sourceVersion = sourceVersion;
+        });
+        loadCase(activeCase);
+        status.textContent = '원본 입력과 통합 변환, 기존 케이스 A~E 결과를 모두 지웠습니다.';
+      });
+
+      function copyWithSelectionFallback() {
+        const selection = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(output);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        const copied = document.execCommand('copy');
+        selection.removeAllRanges();
+        if (!copied) throw new Error('복사할 수 없습니다.');
+      }
+
+      function copyHtml() {
+        const copyNode = output.cloneNode(true);
+        copyNode.querySelectorAll('strong, b').forEach((element) => element.style.fontWeight = '700');
+        const html = `<div style="font-family:Arial,Malgun Gothic,sans-serif;font-size:14px;line-height:1.65;color:#172033">${copyNode.innerHTML}</div>`;
+        const plain = output.innerText;
+        return { html, plain };
+      }
+
+      copyButton.addEventListener('click', async () => {
+        if (!output.innerText.trim()) {
+          status.textContent = '복사할 변환 결과가 없습니다.';
+          return;
+        }
+        const { html, plain } = copyHtml();
+        try {
+          if (!navigator.clipboard || !window.ClipboardItem) throw new Error('Clipboard API 미지원');
+          await navigator.clipboard.write([new ClipboardItem({
+            'text/html': new Blob([html], { type: 'text/html' }),
+            'text/plain': new Blob([plain], { type: 'text/plain' })
+          })]);
+          status.textContent = '복사 완료 — PowerPoint 도형 또는 표에 붙여넣으세요.';
+        } catch (error) {
+          try {
+            copyWithSelectionFallback();
+            status.textContent = '복사 완료 — 호환 모드로 복사했습니다.';
+          } catch (fallbackError) {
+            status.textContent = '복사에 실패했습니다. 결과를 선택해 직접 복사해 주세요.';
+          }
+        }
+      });
+      loadCase('unified');
+    })();
+  </script>
+</body>
+</html>
