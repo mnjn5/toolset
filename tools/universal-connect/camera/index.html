@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<!-- HTTPS 정적 호스트(Vercel 등)에 배포해 Apps Script 업로드 창과 연동합니다. -->
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Apps Script 이미지 도구와 연동되는 웹캠 촬영 페이지입니다.">
+  <title>웹캠 촬영 | 작업 도구함</title>
+  <style>
+    :root { color: #202124; font-family: Arial, sans-serif; }
+    body { max-width: 680px; margin: 24px auto; padding: 0 16px; font-size: 16px; line-height: 1.4; }
+    video, canvas { display: block; width: 100%; max-height: 480px; border-radius: 8px; background: #202124; object-fit: contain; }
+    canvas { display: none; }
+    button { margin: 16px 8px 0 0; padding: 10px 14px; border: 0; border-radius: 4px; background: #1a73e8; color: #fff; cursor: pointer; }
+    button.secondary { background: #5f6368; }
+    #use { display: none; }
+    #message { min-height: 24px; color: #b3261e; }
+  </style>
+</head>
+<body>
+  <h1>웹캠 촬영</h1>
+  <p id="message">카메라 권한을 허용하세요.</p>
+  <video id="video" autoplay playsinline></video>
+  <canvas id="canvas"></canvas>
+  <button id="capture" type="button">사진 촬영</button>
+  <button id="retry" class="secondary" type="button" hidden>다시 촬영</button>
+  <button id="use" type="button">이 이미지 사용</button>
+
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const message = document.getElementById('message');
+    let stream;
+    let capturedDataUrl = '';
+
+    async function startCamera() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' },
+          audio: false,
+        });
+        video.srcObject = stream;
+        message.textContent = '';
+      } catch (error) {
+        message.textContent = `카메라를 열 수 없습니다: ${error.message}`;
+      }
+    }
+
+    document.getElementById('capture').addEventListener('click', () => {
+      const maxWidth = 1600;
+      const scale = Math.min(1, maxWidth / video.videoWidth);
+      canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+      canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+      canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+      capturedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      video.style.display = 'none';
+      canvas.style.display = 'block';
+      document.getElementById('capture').hidden = true;
+      document.getElementById('retry').hidden = false;
+      document.getElementById('use').style.display = 'inline-block';
+    });
+
+    document.getElementById('retry').addEventListener('click', () => {
+      video.style.display = 'block';
+      canvas.style.display = 'none';
+      document.getElementById('capture').hidden = false;
+      document.getElementById('retry').hidden = true;
+      document.getElementById('use').style.display = 'none';
+    });
+
+    document.getElementById('use').addEventListener('click', () => {
+      const returnOrigin = new URLSearchParams(window.location.search).get('returnOrigin');
+      if (!window.opener || !returnOrigin || !/^https:\/\//.test(returnOrigin)) {
+        message.textContent = '원래 업로드 창에서 다시 열어주세요.';
+        return;
+      }
+      window.opener.postMessage({ type: 'IMAGE_LINKER_CAPTURE', dataUrl: capturedDataUrl }, returnOrigin);
+      window.close();
+    });
+
+    window.addEventListener('beforeunload', () => stream?.getTracks().forEach((track) => track.stop()));
+    startCamera();
+  </script>
+</body>
+</html>
