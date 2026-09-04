@@ -9,12 +9,14 @@
   <style>
     :root { color: #202124; font-family: Arial, sans-serif; }
     body { max-width: 680px; margin: 24px auto; padding: 0 16px; font-size: 16px; line-height: 1.4; }
-    video, canvas { display: block; width: 100%; max-height: 480px; border-radius: 8px; background: #202124; object-fit: contain; }
+    video, canvas { display: block; width: 100%; max-height: 480px; border-radius: 8px; background: #202124; object-fit: contain; touch-action: none; }
     canvas { display: none; }
     button { margin: 16px 8px 0 0; padding: 10px 14px; border: 0; border-radius: 4px; background: #1a73e8; color: #fff; cursor: pointer; }
     button.secondary { background: #5f6368; }
+    button:disabled { cursor: not-allowed; opacity: .55; }
     #use { display: none; }
     #message { min-height: 24px; color: #b3261e; }
+    #crop-guide { display: none; margin: 12px 0 0; color: #5f6368; font-size: 14px; }
   </style>
 </head>
 <body>
@@ -22,16 +24,28 @@
   <p id="message">카메라 권한을 허용하세요.</p>
   <video id="video" autoplay playsinline></video>
   <canvas id="canvas"></canvas>
+  <p id="crop-guide">영역 안을 드래그해 이동하고, 네 모서리를 드래그해 자를 범위를 조절하세요.</p>
   <button id="capture" type="button">사진 촬영</button>
   <button id="retry" class="secondary" type="button" hidden>다시 촬영</button>
+  <button id="reset-crop" class="secondary" type="button" hidden>크롭 초기화</button>
   <button id="use" type="button">이 이미지 사용</button>
 
   <script>
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const message = document.getElementById('message');
+    const capture = document.getElementById('capture');
+    const retry = document.getElementById('retry');
+    const resetCrop = document.getElementById('reset-crop');
+    const use = document.getElementById('use');
+    const cropGuide = document.getElementById('crop-guide');
+    const sourceCanvas = document.createElement('canvas');
+    const sourceContext = sourceCanvas.getContext('2d');
+    const canvasContext = canvas.getContext('2d');
     let stream;
     let capturedDataUrl = '';
+    let crop;
+    let pointerAction;
 
     async function startCamera() {
       try {
@@ -46,34 +60,144 @@
       }
     }
 
-    document.getElementById('capture').addEventListener('click', () => {
+    function resetCropArea() {
+      const inset = Math.round(Math.min(sourceCanvas.width, sourceCanvas.height) * 0.08);
+      crop = {
+        x: inset,
+        y: inset,
+        width: sourceCanvas.width - inset * 2,
+        height: sourceCanvas.height - inset * 2,
+      };
+      drawCropEditor();
+    }
+
+    function drawCropEditor() {
+      if (!crop) return;
+      canvasContext.clearRect(0, 0, canvas.width, canvas.height);
+      canvasContext.drawImage(sourceCanvas, 0, 0);
+      canvasContext.fillStyle = 'rgba(0, 0, 0, 0.52)';
+      canvasContext.fillRect(0, 0, canvas.width, canvas.height);
+      canvasContext.save();
+      canvasContext.beginPath();
+      canvasContext.rect(crop.x, crop.y, crop.width, crop.height);
+      canvasContext.clip();
+      canvasContext.drawImage(sourceCanvas, 0, 0);
+      canvasContext.restore();
+      canvasContext.strokeStyle = '#ffffff';
+      canvasContext.lineWidth = Math.max(2, Math.min(canvas.width, canvas.height) / 360);
+      canvasContext.strokeRect(crop.x, crop.y, crop.width, crop.height);
+      const handleSize = Math.max(10, Math.min(canvas.width, canvas.height) / 36);
+      canvasContext.fillStyle = '#ffffff';
+      [[crop.x, crop.y], [crop.x + crop.width, crop.y], [crop.x, crop.y + crop.height], [crop.x + crop.width, crop.y + crop.height]]
+        .forEach(([x, y]) => canvasContext.fillRect(x - handleSize / 2, y - handleSize / 2, handleSize, handleSize));
+    }
+
+    function canvasPoint(event) {
+      const bounds = canvas.getBoundingClientRect();
+      return {
+        x: (event.clientX - bounds.left) * canvas.width / bounds.width,
+        y: (event.clientY - bounds.top) * canvas.height / bounds.height,
+      };
+    }
+
+    function getCropHandle(point) {
+      const tolerance = 24 * canvas.width / canvas.getBoundingClientRect().width;
+      const corners = {
+        nw: [crop.x, crop.y], ne: [crop.x + crop.width, crop.y],
+        sw: [crop.x, crop.y + crop.height], se: [crop.x + crop.width, crop.y + crop.height],
+      };
+      return Object.entries(corners).find(([, [x, y]]) => Math.abs(point.x - x) <= tolerance && Math.abs(point.y - y) <= tolerance)?.[0]
+        || (point.x >= crop.x && point.x <= crop.x + crop.width && point.y >= crop.y && point.y <= crop.y + crop.height ? 'move' : null);
+    }
+
+    function constrainCrop() {
+      const minimum = Math.min(100, sourceCanvas.width, sourceCanvas.height);
+      crop.width = Math.max(minimum, Math.min(crop.width, sourceCanvas.width));
+      crop.height = Math.max(minimum, Math.min(crop.height, sourceCanvas.height));
+      crop.x = Math.max(0, Math.min(crop.x, sourceCanvas.width - crop.width));
+      crop.y = Math.max(0, Math.min(crop.y, sourceCanvas.height - crop.height));
+    }
+
+    capture.addEventListener('click', () => {
+      if (!video.videoWidth || !video.videoHeight) {
+        message.textContent = '카메라 영상을 준비하는 중입니다. 잠시 후 다시 시도하세요.';
+        return;
+      }
       const maxWidth = 1600;
       const scale = Math.min(1, maxWidth / video.videoWidth);
-      canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
-      canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
-      canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-      capturedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      sourceCanvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+      sourceCanvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+      sourceContext.drawImage(video, 0, 0, sourceCanvas.width, sourceCanvas.height);
+      canvas.width = sourceCanvas.width;
+      canvas.height = sourceCanvas.height;
+      resetCropArea();
       video.style.display = 'none';
       canvas.style.display = 'block';
-      document.getElementById('capture').hidden = true;
-      document.getElementById('retry').hidden = false;
-      document.getElementById('use').style.display = 'inline-block';
+      cropGuide.style.display = 'block';
+      capture.hidden = true;
+      retry.hidden = false;
+      resetCrop.hidden = false;
+      use.style.display = 'inline-block';
     });
 
-    document.getElementById('retry').addEventListener('click', () => {
+    retry.addEventListener('click', () => {
       video.style.display = 'block';
       canvas.style.display = 'none';
-      document.getElementById('capture').hidden = false;
-      document.getElementById('retry').hidden = true;
-      document.getElementById('use').style.display = 'none';
+      cropGuide.style.display = 'none';
+      capture.hidden = false;
+      retry.hidden = true;
+      resetCrop.hidden = true;
+      use.style.display = 'none';
     });
 
-    document.getElementById('use').addEventListener('click', () => {
+    resetCrop.addEventListener('click', resetCropArea);
+
+    canvas.addEventListener('pointerdown', (event) => {
+      const point = canvasPoint(event);
+      const handle = getCropHandle(point);
+      if (!handle) return;
+      pointerAction = { handle, point, crop: { ...crop } };
+      canvas.setPointerCapture(event.pointerId);
+    });
+
+    canvas.addEventListener('pointermove', (event) => {
+      if (!pointerAction) return;
+      const point = canvasPoint(event);
+      const { handle, crop: initial, point: start } = pointerAction;
+      const deltaX = point.x - start.x;
+      const deltaY = point.y - start.y;
+      crop = { ...initial };
+      if (handle === 'move') {
+        crop.x += deltaX;
+        crop.y += deltaY;
+      } else {
+        if (handle.includes('w')) { crop.x += deltaX; crop.width -= deltaX; }
+        if (handle.includes('n')) { crop.y += deltaY; crop.height -= deltaY; }
+        if (handle.includes('e')) crop.width += deltaX;
+        if (handle.includes('s')) crop.height += deltaY;
+      }
+      constrainCrop();
+      drawCropEditor();
+    });
+
+    canvas.addEventListener('pointerup', () => { pointerAction = undefined; });
+    canvas.addEventListener('pointercancel', () => { pointerAction = undefined; });
+
+    use.addEventListener('click', () => {
       const returnOrigin = new URLSearchParams(window.location.search).get('returnOrigin');
       if (!window.opener || !returnOrigin || !/^https:\/\//.test(returnOrigin)) {
         message.textContent = '원래 업로드 창에서 다시 열어주세요.';
         return;
       }
+      const outputCanvas = document.createElement('canvas');
+      outputCanvas.width = Math.round(crop.width);
+      outputCanvas.height = Math.round(crop.height);
+      outputCanvas.getContext('2d').drawImage(
+        sourceCanvas,
+        Math.round(crop.x), Math.round(crop.y), Math.round(crop.width), Math.round(crop.height),
+        0, 0, outputCanvas.width, outputCanvas.height,
+      );
+      capturedDataUrl = outputCanvas.toDataURL('image/jpeg', 0.85);
       window.opener.postMessage({ type: 'IMAGE_LINKER_CAPTURE', dataUrl: capturedDataUrl }, returnOrigin);
       window.close();
     });
