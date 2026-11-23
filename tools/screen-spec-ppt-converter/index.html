@@ -130,6 +130,34 @@
           .join('\n');
       }
 
+      function getClipboardSource(plain, html) {
+        if (!html || normalizeWindowsPaste(plain) !== plain) return plain;
+
+        const template = document.createElement('template');
+        template.innerHTML = html;
+        if (!template.content.querySelector('table')) return plain;
+
+        const blocks = new Set(['BR', 'DIV', 'P', 'LI', 'TABLE', 'TR', 'TD', 'TH', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6']);
+        const ignored = new Set(['HEAD', 'SCRIPT', 'STYLE', 'TEMPLATE']);
+        const parts = [];
+        function collect(node) {
+          if (node.nodeType === Node.TEXT_NODE) {
+            parts.push(node.textContent.replace(/[\t\r\n ]+/g, ' '));
+            return;
+          }
+          if (node.nodeType !== Node.ELEMENT_NODE || ignored.has(node.tagName)) return;
+          const separatesLines = blocks.has(node.tagName);
+          if (separatesLines) parts.push('\n');
+          node.childNodes.forEach(collect);
+          if (separatesLines) parts.push('\n');
+        }
+        template.content.childNodes.forEach(collect);
+        const lines = parts.join('').split('\n').map((line) => line.trim()).filter(Boolean);
+        // Use the HTML path for numbered specifications, where empty cells are layout only.
+        const startsWithNumber = /^(?:\d+(?:-\d+)*)(?:$|\s*[.)]\s*\S)/.test(lines[0] || '');
+        return startsWithNumber && lines.length > 1 ? lines.join('\n') : plain;
+      }
+
       function parseItems(text) {
         const lines = text.replace(/\r\n?/g, '\n').split('\n').map((line) => line.trim());
         const items = [];
@@ -364,6 +392,16 @@
             : '제목은 굵게, 설명은 하이픈 목록으로 변환됩니다.';
       }
 
+      source.addEventListener('paste', (event) => {
+        if (activeCase !== 'unified' || !event.clipboardData) return;
+        const plain = event.clipboardData.getData('text/plain');
+        const text = getClipboardSource(plain, event.clipboardData.getData('text/html'));
+        if (text === plain) return;
+        event.preventDefault();
+        source.setRangeText(text, source.selectionStart, source.selectionEnd, 'end');
+        source.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+
       source.addEventListener('input', () => {
         sourceVersion += 1;
         if (caseStates[activeCase].manuallyEdited) {
@@ -382,9 +420,22 @@
       });
       pasteClipboardButton.addEventListener('click', async () => {
         try {
-          if (!navigator.clipboard?.readText) throw new Error('Clipboard API 미지원');
           const wasManuallyEdited = caseStates[activeCase].manuallyEdited;
-          source.value = await navigator.clipboard.readText();
+          let text = '';
+          if (activeCase === 'unified' && navigator.clipboard?.read) {
+            try {
+              const items = await navigator.clipboard.read();
+              const item = items.find(({ types }) => types.includes('text/html') || types.includes('text/plain'));
+              if (item) {
+                const readFormat = async (type) => item.types.includes(type) ? (await item.getType(type)).text() : '';
+                const [plain, html] = await Promise.all([readFormat('text/plain'), readFormat('text/html')]);
+                text = getClipboardSource(plain, html);
+              }
+            } catch {
+              // Some browsers allow plain-text reads only.
+            }
+          }
+          source.value = text || await navigator.clipboard.readText();
           source.focus();
           source.dispatchEvent(new Event('input', { bubbles: true }));
           status.textContent = source.value.trim()
