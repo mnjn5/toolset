@@ -116,6 +116,20 @@
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
       })[char]);
 
+      function normalizeWindowsPaste(text) {
+        const lines = text.replace(/\r\n?/g, '\n').split('\n');
+        const isEmptyTableRow = (line) => /^\|(?:\s|&#x20;|&#32;|&nbsp;)*\|$/i.test(line.trim());
+        const isTableDivider = (line) => /^\|\s*:?-{3,}:?\s*\|$/.test(line.trim());
+        const isEmptyTable = (index) => index + 1 < lines.length
+          && isEmptyTableRow(lines[index]) && isTableDivider(lines[index + 1]);
+        if (!lines.some((_, index) => isEmptyTable(index))) return text;
+
+        return lines.filter((line, index) => line.trim() && !isEmptyTable(index)
+          && !(index > 0 && isEmptyTable(index - 1)))
+          .map((line) => line.trim().replace(/^\*\*(.+)\*\*$/, '$1'))
+          .join('\n');
+      }
+
       function parseItems(text) {
         const lines = text.replace(/\r\n?/g, '\n').split('\n').map((line) => line.trim());
         const items = [];
@@ -297,7 +311,7 @@
       }
 
       function createHtml(text, caseId) {
-        if (caseId === 'unified') return createUnifiedHtml(text);
+        if (caseId === 'unified') return createUnifiedHtml(normalizeWindowsPaste(text));
         if (caseId === 'c') return createCaseCHtml(text);
         if (caseId === 'd') return createCaseDHtml(text);
         if (caseId === 'e') return createCaseEHtml(text);
@@ -321,7 +335,7 @@
         activeCase = caseId;
         const current = caseStates[caseId];
         source.placeholder = caseId === 'unified'
-          ? '표에서 복사한 텍스트를 붙여넣으세요. 번호형·문단형·셀 안 줄바꿈을 통합 변환합니다.'
+          ? 'Windows 또는 macOS에서 표를 복사해 붙여넣으세요.'
           : caseId === 'c'
           ? '빈 줄로 항목을 구분해 붙여넣으세요. 각 항목의 첫 줄은 굵게 변환됩니다.'
           : caseId === 'd'
