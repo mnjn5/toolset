@@ -54,6 +54,7 @@
           <h2>원본 텍스트</h2>
           <div class="tabs">
             <button class="secondary" id="paste-clipboard" type="button">클립보드 붙여넣기</button>
+            <button class="secondary" id="paste-and-copy" type="button">붙여넣고 PPT용 복사</button>
             <button class="secondary" id="reconvert" type="button" title="현재 케이스 결과를 원본 텍스트로 다시 변환합니다">다시 변환</button>
             <button class="secondary danger" id="clear-all" type="button">전체 지우기</button>
           </div>
@@ -96,6 +97,7 @@
       const output = document.getElementById('output');
       const copyButton = document.getElementById('copy');
       const pasteClipboardButton = document.getElementById('paste-clipboard');
+      const pasteAndCopyButton = document.getElementById('paste-and-copy');
       const reconvertButton = document.getElementById('reconvert');
       const clearAllButton = document.getElementById('clear-all');
       const status = document.getElementById('status');
@@ -418,7 +420,7 @@
           status.textContent = '직접 수정한 결과가 복사됩니다.';
         }
       });
-      pasteClipboardButton.addEventListener('click', async () => {
+      async function pasteFromClipboard(copyAfterPaste = false) {
         try {
           const wasManuallyEdited = caseStates[activeCase].manuallyEdited;
           let text = '';
@@ -435,9 +437,19 @@
               // Some browsers allow plain-text reads only.
             }
           }
-          source.value = text || await navigator.clipboard.readText();
+          text = text || await navigator.clipboard.readText();
+          if (copyAfterPaste && !text.trim()) {
+            status.textContent = '클립보드에 텍스트가 없습니다.';
+            return;
+          }
+          source.value = text;
           source.focus();
           source.dispatchEvent(new Event('input', { bubbles: true }));
+          if (copyAfterPaste) {
+            if (wasManuallyEdited) convert();
+            await copyOutput();
+            return;
+          }
           status.textContent = source.value.trim()
             ? wasManuallyEdited
               ? '클립보드 내용을 붙여넣었습니다. 직접 수정한 결과에 반영하려면 “다시 변환”을 누르세요.'
@@ -447,7 +459,9 @@
           source.focus();
           status.textContent = '클립보드 접근 권한이 필요합니다. 입력 영역에서 Ctrl+V로 붙여넣어 주세요.';
         }
-      });
+      }
+      pasteClipboardButton.addEventListener('click', () => pasteFromClipboard());
+      pasteAndCopyButton.addEventListener('click', () => pasteFromClipboard(true));
       reconvertButton.addEventListener('click', () => convert());
       tabs.forEach((tab) => tab.addEventListener('click', () => loadCase(tab.id.replace('tab-', ''))));
       clearAllButton.addEventListener('click', () => {
@@ -481,7 +495,7 @@
         return { html, plain };
       }
 
-      copyButton.addEventListener('click', async () => {
+      async function copyOutput() {
         if (!output.innerText.trim()) {
           status.textContent = '복사할 변환 결과가 없습니다.';
           return;
@@ -502,7 +516,8 @@
             status.textContent = '복사에 실패했습니다. 결과를 선택해 직접 복사해 주세요.';
           }
         }
-      });
+      }
+      copyButton.addEventListener('click', copyOutput);
       loadCase('unified');
     })();
   </script>
